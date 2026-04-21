@@ -1,0 +1,19 @@
+services:
+  llm-wiki-agent:
+    build: .
+    container_name: llm-wiki-agent
+    volumes:
+      # Knowledge base - shared with Obsidian
+      - ./knowledge:/app/knowledge
+      - ./canon:/app/canon
+      # Persistence
+      - ./lance-data:/app/lancedb
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    env_file:
+      - .env
+    environment:
+      # Ollama Mac app connection
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+    ports:
+      - "8080:8080"

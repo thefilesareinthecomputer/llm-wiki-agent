@@ -1,0 +1,106 @@
+/dev-resources/
+DS_Store
+.DS_Store
+.claude/
+lance-data/
+lancedb/
+/data/
+.env
+chroma-data/
+chroma/
+
+# Knowledge base (ephemeral, user-managed)
+/knowledge/
+/canon/
+
+# MemPalace memory (persistent conversations)
+/mempalace/
+
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.venv/
+venv/
+ENV/
+/env/
+
+# Build outputs
+dist/
+build/
+*.egg-info/
+*.so
+*.dylib
+*.dll
+
+# Docker
+.docker/
+
+# Environment and secrets
+.env
+.env.local
+.env.*.local
+.secrets
+secrets/
+credentials/
+*.pem
+*.key
+*.crt
+
+# IDE and editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Runtime data
+pids/
+*.pid
+.cache/
+.parcel-cache/
+
+# Testing
+coverage/
+.nyc_output/
+.coverage
+.pytest_cache/
+test-results/
+
+# Database and data
+*.db
+*.sqlite
+*.sqlite3
+
+# Vector stores (local instances)
+lancedb/
+milvus/
+qdrant/
+
+# Model weights and caches
+/models/
+*.gguf
+*.bin
+*.safetensors
+.huggingface/
+cache/
+.llama/
+.ollama/
+
+# OS generated files
+Thumbs.db
+Desktop.ini
+
+# Temporary files
+*.tmp
+*.baklogs/

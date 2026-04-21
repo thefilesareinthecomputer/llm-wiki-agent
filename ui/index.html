@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>R</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300;1,9..40,400&family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/ui/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script type="module" src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs"></script>
+</head>
+<body>
+  <div id="app">
+    <!-- Header -->
+    <header id="header">
+      <div id="header-left">
+        <button id="sidebar-toggle" title="Toggle Sidebar">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="3" y1="12" x2="21" y2="12"></line>
+            <line x1="3" y1="6" x2="21" y2="6"></line>
+            <line x1="3" y1="18" x2="21" y2="18"></line>
+          </svg>
+        </button>
+        <h1>R</h1>
+      </div>
+      <div id="header-controls">
+        <div id="model-selector">
+          <label for="model-select">Model:</label>
+          <input type="text" id="model-select" list="model-list" placeholder="Select or type model..." autocomplete="off">
+          <datalist id="model-list"></datalist>
+        </div>
+        <div id="connection-status">
+          <span id="status-dot" class="dot dot-disconnected"></span>
+          <span id="status-text">Connecting...</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Layout: Sidebar + Chat -->
+    <div id="main-layout">
+      <!-- Sidebar: Conversations + KB Browser + Index (LEFT) -->
+      <aside id="sidebar">
+        <div class="sidebar-section">
+          <div class="sidebar-section-header">
+            <h2>Conversations</h2>
+            <button id="new-chat-btn" title="New Chat" onclick="createNewConversation()">+</button>
+          </div>
+          <ul id="conversation-list"></ul>
+        </div>
+
+        <div class="sidebar-section">
+          <h2>Knowledge Base</h2>
+          <div id="kb-browser">
+            <div class="kb-tabs">
+              <button class="tab active" data-folder="knowledge">knowledge/</button>
+              <button class="tab" data-folder="canon">canon/</button>
+            </div>
+            <ul id="file-list"></ul>
+          </div>
+        </div>
+
+        <div class="sidebar-section">
+          <h2>Search</h2>
+          <input type="text" id="search-input" placeholder="Search KB...">
+          <div id="search-results"></div>
+        </div>
+
+        <div class="sidebar-section">
+          <h2>Index</h2>
+          <div id="index-stats">
+            <span id="file-count">0</span> files
+            <span id="vector-count">0</span> vectors
+          </div>
+          <div class="reindex-controls">
+            <button id="reindex-btn">Rebuild Index</button>
+            <label class="reindex-option"><input type="checkbox" id="reindex-summaries"> LLM Summaries</label>
+            <label class="reindex-option"><input type="checkbox" id="reindex-entities"> Entities</label>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Chat Panel -->
+      <main id="chat-container">
+        <div id="messages"></div>
+      </main>
+    </div>
+
+    <!-- Context Bar (token usage) -->
+    <div id="ctx-bar" class="hidden">
+      <div id="ctx-fill"></div>
+      <span id="ctx-label">0 / 16384 ctx</span>
+    </div>
+
+    <!-- Input Footer -->
+    <footer id="input-bar">
+      <textarea id="text-input" placeholder="Message R..." autocomplete="off" rows="1"></textarea>
+      <button id="send-btn" title="Send">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="22" y1="2" x2="11" y2="13"></line>
+          <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+        </svg>
+      </button>
+    </footer>
+  </div>
+
+  <!-- KB graph HUD: self-contained fetch tap + canvas; no coupling to app.js -->
+  <script src="/ui/kb-graph-hud.js"></script>
+  <script src="/ui/app.js"></script>
+</body>
+</html>
