@@ -94,7 +94,7 @@ class ModelGateway:
 
     def __init__(self):
         self.base_url = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434")
-        self.model = os.getenv("OLLAMA_MODEL", "devstral-2:123b-cloud")
+        self.model = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
         self._client: ollama.AsyncClient | None = None
         # Kept around for endpoints that still use bare HTTP (eg. /api/tags).
         self._http: httpx.AsyncClient | None = None

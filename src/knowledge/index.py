@@ -75,8 +75,8 @@ TIER_SEARCH_WEIGHTS = {
 # SUMMARY_PROVIDER controls primary model selection; SUMMARY_MODEL and
 # SUMMARY_MODEL_FALLBACK can override either side. Embeddings stay on Gemini
 # regardless — these envs only affect the LLM summary calls.
-DEFAULT_CLOUD_SUMMARY_MODEL = "minimax-m2.7:cloud"
-DEFAULT_LOCAL_SUMMARY_MODEL = "hf.co/Jiunsong/supergemma4-26b-uncensored-gguf-v2:Q4_K_M"
+DEFAULT_CLOUD_SUMMARY_MODEL = "qwen3.5:397b-cloud"
+DEFAULT_LOCAL_SUMMARY_MODEL = "llama3.1:8b"
 DEFAULT_OLLAMA_BASE_URL = "http://host.docker.internal:11434"
 
 
@@ -855,7 +855,7 @@ class KBIndex:
         Routing controlled by SUMMARY_PROVIDER (default cloud_ollama, alt local_ollama).
         Both providers go through the Ollama /api/chat endpoint; only the model
         string differs. On per-chunk cloud failure, retries the configured fallback
-        (default local supergemma4-26b) once before falling back to mechanical.
+        (default local llama3.1:8b) once before falling back to mechanical.
 
         Concurrency defaults: 8 workers cloud, 3 workers local.
         """

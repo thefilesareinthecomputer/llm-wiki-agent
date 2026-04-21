@@ -306,7 +306,7 @@ Both produce 768-dim vectors. Gemini is cloud-only (paid tier: no training on da
 | Mode | LLM calls | Time | What agent sees |
 |------|-----------|------|------------------|
 | Mechanical (default) | 0 | Instant | First 250 chars per section |
-| LLM section summaries | ~440 | ~13 min (3 workers, supergemma4-26b local) | Dense 2-3 sentence summaries per section + doc overview |
+| LLM section summaries | ~440 | ~13 min (3 workers, llama3.1:8b local) | Dense 2-3 sentence summaries per section + doc overview |
 
 - Mechanical summaries: extracted from first meaningful line of each chunk
 - LLM section summaries: parallel per-section summarization via `_generate_section_summaries()` (ThreadPoolExecutor, 3 workers, 60s timeout)
@@ -315,7 +315,7 @@ Both produce 768-dim vectors. Gemini is cloud-only (paid tier: no training on da
   - 500 char truncation (vs 250 for mechanical)
 - Document overview: one call per file via `_generate_doc_summary()`, creates a "Document Overview" chunk (type=overview)
 - Configured via `/kb/reindex` with `{"summaries": true}`
-- SUMMARY_MODEL env var controls which model (default: supergemma4-26b)
+- SUMMARY_MODEL env var controls which model (default: llama3.1:8b)
 - Worker count: 3 (Ollama processes ~1-2 requests at a time; 12 workers caused queue backup and timeouts)
 
 ## Key Decisions (Resolved)
@@ -375,7 +375,7 @@ Both produce 768-dim vectors. Gemini is cloud-only (paid tier: no training on da
 10. **Graph clear on rebuild** — `_init_graph_nodes_only()` must `self.graph.clear()` before adding nodes, otherwise stale data accumulates.
 11. **LanceDB query pre-embedding** — LanceDB doesn't auto-embed queries. Must call `self._embedding_fn([query])[0]` before `table.search(query_vec)`. ChromaDB's `query_texts` auto-embedded, LanceDB does not.
 12. **asyncio.run in event loop** — `_generate_summary()` uses sync httpx.Client, not asyncio.run(). Works in both thread and async contexts.
-13. **LLM summary model** — Per-chunk summaries are too slow (439 calls). Document-level overview is 1 call per file (~20 total). Section summaries always mechanical. SUMMARY_MODEL env var (default: supergemma4-26b).
+13. **LLM summary model** — Per-chunk summaries are too slow (439 calls). Document-level overview is 1 call per file (~20 total). Section summaries always mechanical. SUMMARY_MODEL env var (default: llama3.1:8b).
 14. **Document Overview chunks** — When `llm_summaries=True`, each file gets a "Document Overview" chunk (type=overview) with LLM summary. Embedded and searchable. Appears in heading tree and search results.
 15. **Folder path mismatch** — Chunk metadata `folder` must be relative to base_dir (e.g., "ai"), NOT relative to /app (e.g., "knowledge/ai"). Folder nodes use relative-to-base-dir names. Mismatch breaks all PARENT_CHILD chunk→folder edges.
 16. **Gemini API key format** — Real Gemini API keys start with `AIza...`. OAuth2 access tokens (`AQ.Ab8RN...`) are NOT API keys and will fail with 401/403. Zero-vector embeddings poison the entire table — must wipe lance-data/ after switching keys.
@@ -397,7 +397,7 @@ Both produce 768-dim vectors. Gemini is cloud-only (paid tier: no training on da
 32. **Mechanical summaries are write-poison without a snapshot** — every `reindex_file` and `save_knowledge` call passed `llm_summaries=False`, and `_index_file` deleted prior chunks before re-creating them, so any LLM summary in the file silently flipped back to mechanical first-line extraction on the next save/edit/watcher event. Fix: snapshot `{heading: summary}` before delete; on write, mechanical only fills chunks where prior is missing OR equals what `_mechanical_summary(content)` would produce now. Structural detection — no metadata column needed.
 33. **Tool-loop deadlock signature** — model emits `[TOOL: search_knowledge(query="X")]` 3+ times in one response, then again next iteration. `max_tool_iterations` and the 50% context cap don't catch it because (a) per-iteration limit only counts iterations not executions, and (b) `search_knowledge` results are small enough to never breach 50%. Fix: dedupe `(name, args)` per turn (within and across iterations) + hard `MAX_TOTAL_TOOL_EXECUTIONS=30` ceiling. Repeat-only iteration triggers `forced_summary_reason="duplicate_tool_loop"` and a nudge to use what's already in context.
 34. **`save_knowledge` watcher cascade** — writing `file.md` + `log.md` + `index.md` then calling `_index_file` inline triggered THREE additional watcher-driven reindexes per save (each running embeddings, edge rebuilds). Fix: `agent.watcher.suppress_paths(paths, seconds=5.0)` registers paths to mute the next event; `save_knowledge` calls it before writing. Auto-expiry guarantees no permanent muting.
-35. **Docker BuildKit export flakes** — rare `parent snapshot ... does not exist` during `docker compose up --build`. Recovery: `docker compose build --no-cache` then `docker compose up -d` (see **Ship workflow** in `CLAUDE.md`).
+35. **Docker BuildKit export flakes** — rare `parent snapshot ... does not exist` during `docker compose up --build`. Recovery: `docker compose build --no-cache` then `docker compose up -d`.
 36. **log_event vs frame_info** — `frame_info` now includes `executed`; `log_event(..., **frame_info)` must not also pass `executed=…` or Python raises duplicate keyword errors.
 
 ## Next Steps
@@ -477,7 +477,7 @@ Items below are prioritized by user impact. Each includes current state and the 
 - Caps: one proofread per turn (cost), rejection feedback goes back as a structured tool result (same envelope as a refusal).
 
 **Delta from current:**
-- Phase 1: add `_validate_content_quality`, add one call-site in `save_knowledge`, add test file, update CLAUDE.md's save_knowledge row.
+- Phase 1: add `_validate_content_quality`, add one call-site in `save_knowledge`, add test file, update the save_knowledge spec.
 - Phase 2: blocked on R7.
 
 ### R2. Reindex progress bar + UI discoverability

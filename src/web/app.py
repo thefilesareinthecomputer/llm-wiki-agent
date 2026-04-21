@@ -79,6 +79,8 @@ MODEL_CONTEXT_WINDOWS: dict[str, int] = {
     "gpt-oss:120b-cloud": 128000,
     "gpt-oss:20b-cloud": 128000,
     "deepseek-v3.1:671b-cloud": 128000,
+    "llama3.1:8b": 128000,
+    "llama3.1:70b": 128000,
 }
 DEFAULT_CONTEXT_WINDOW = 32000
 

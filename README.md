@@ -1,14 +1,36 @@
 # LLM Wiki Agent
 
-A standalone AI agent running in Docker with local model inference, persistent conversations, knowledge base tools with graph traversal, and a glassmorphism dark UI.
+A working implementation of the [LLM Wiki Pattern](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) proposed by Andrej Karpathy, extended with medallion-tiered storage and hybrid local-or-cloud inference. Runs in Docker, uses Obsidian-compatible markdown as the source of truth.
 
 ![LLM Wiki Agent UI](static-assets/images/demo.gif)
+
+_Any Ollama model works — switch at runtime from the UI dropdown._
+
+## Why this exists
+
+Most personal AI agents pick a side: fully local (privacy) or fully cloud (speed). This one switches between them at runtime, same KB either way. Use Ollama locally for sensitive material. Switch to cloud models for heavier reasoning. Embeddings can be local (Ollama) or cloud (Gemini). You decide per session.
+
+**Three ideas this repo explores:**
+
+1. **The LLM Wiki Pattern as a working system.** Focused single-concept pages, explicit `[[wiki-links]]`, graph traversal as the primary navigation mode.
+2. **Medallion tiers applied to personal knowledge.** `canon/` (read-only gold) > `knowledge/wiki/` (agent-writable silver) > `knowledge/raw/` (source bronze). Search ranks tiers accordingly.
+3. **Honest tool execution.** The agent never reports work it didn't do. Tool results are labeled `COMPLETE`, `TRUNCATED`, or `NOT_EXECUTED`. The UI surfaces the distinction.
+
+## Inference Modes
+
+| Use Case | Chat Model | Embeddings | Network |
+|----------|------------|------------|---------|
+| Fully local / sensitive data | Ollama (local) | Ollama (local) | None required |
+| Hybrid (recommended) | Ollama (local or cloud) | Gemini (cloud) | Embeddings only |
+| Fully cloud / maximum speed | Ollama Cloud | Gemini (cloud) | Required |
+
+Switch chat models at runtime from the UI. Embedding provider switches via `EMBEDDING_PROVIDER` in `.env` (requires a lance-data wipe — embedding spaces aren't compatible across providers).
 
 ## Quick Start
 
 ```bash
 # Clone and build
-git clone <repo> && cd llm-wiki-agent
+git clone https://github.com/thefilesareinthecomputer/llm-wiki-agent.git && cd llm-wiki-agent
 
 # Create .env with your Gemini API key
 echo "GOOGLE_GEMINI_API_KEY=AIza..." > .env
@@ -21,11 +43,11 @@ docker compose up --build -d
 
 **Prerequisites:** Docker Desktop, Ollama Mac app with at least one model pulled, Google Gemini API key.
 
-**Changing code:** `src/` and `tests/` are copied into the image at build time (not bind-mounted). After edits, follow the **Ship workflow** in [`CLAUDE.md`](CLAUDE.md) (`docker compose down`, rebuild, full pytest in the container, docs, then commit).
+**Changing code:** `src/` and `tests/` are copied into the image at build time (not bind-mounted). After edits, rebuild: `docker compose down && docker compose up --build -d`, then run tests in the container.
 
 ## Features
 
-- **Local inference** via Ollama Mac app — no cloud API required for chat
+- **Local inference** via Ollama — no cloud API required for chat
 - **Gemini embeddings** — fast cloud-based vector search (gemini-embedding-001, 768-dim)
 - **Model switching** — change models at runtime from the UI dropdown
 - **Conversation sessions** — create, switch, delete chats; history persists across reloads
@@ -36,7 +58,7 @@ docker compose up --build -d
 - **Heading trees with token costs** — agent sees structure and size before loading sections
 - **Adaptive tool budget** — max 15 section loads, min 8000 tokens remaining; per-class per-turn caps (explore/write/maintenance); `compile_knowledge` and `save_knowledge` **each** consume one **write** slot; tool traffic capped at ~50% of context window; honest in-band refusals
 - **Streaming tool loop** — Ollama native `tool_calls`; execute in `asyncio.to_thread`, feed `role="tool"` results back; per-class budgets + context cap + dedup of identical `(name, args)`; max 10 iterations
-- **Honest tool framing** — `[TOOL_RESULT: name | COMPLETE …]` or `TRUNCATED …`; refusals / duplicate skips use **`NOT_EXECUTED`** (never labeled `COMPLETE`). `read_knowledge_section` self-reports via `[SECTION: …]` with `offset`. SSE `tool_result` JSON includes `executed` for the UI
+- **Honest tool framing** — `[TOOL_RESULT: name | COMPLETE ...]` or `TRUNCATED ...`; refusals / duplicate skips use **`NOT_EXECUTED`** (never labeled `COMPLETE`). `read_knowledge_section` self-reports via `[SECTION: ...]` with `offset`. SSE `tool_result` JSON includes `executed` for the UI
 - **Section-based chunking** — H1-H5 hierarchy, recursive splitting, document-level LLM overviews
 - **LLM summary preservation** — reindex/save/watcher never overwrite stored LLM summaries with mechanical fallbacks; mechanical only fills genuinely new chunks
 - **Watcher path-suppression** — `save_knowledge` mutes its own write cascade so each save runs exactly one inline reindex, not four
@@ -69,7 +91,6 @@ docker compose up --build -d
 | Chat sessions | `/app/sessions/*.json` | CRUD, auto-title, history, tool-call metadata | Active |
 | KB vectors | `/app/lancedb/` | Semantic search over markdown | Active |
 | KB graph | `/app/lancedb/graph.json` | Graph edges and nodes | Active |
-| Long-term memory | `/app/mempalace/` | Identity, entities, recall | Parked |
 | Debug logs | `/app/logs/*.log` | Structured JSONL per module | Active |
 
 ## API Endpoints
@@ -109,29 +130,33 @@ llm-wiki-agent/
 │   ├── knowledge/
 │   │   ├── index.py         # LanceDB index, Gemini/Ollama embeddings, doc summaries, graph
 │   │   ├── chunker.py       # H1-H5 heading trees, token costs, recursive chunk splitting
-│   │   └── graph.py         # In-memory knowledge graph, folder tree, traversal
+│   │   ├── graph.py         # In-memory knowledge graph, folder tree, traversal
+│   │   ├── wiki_links.py    # [[wiki-link]] parsing and resolution
+│   │   └── prose_bridges.py # Prose reference extraction for graph edges
 │   └── agent/
 │       ├── runtime.py       # Agent loop (stub — tool loop in app.py)
 │       ├── tools.py          # 14 KB tools + per-class budgets, Obsidian writes, lint/compile, conversation tools
 │       ├── tokenizer.py      # Token counting (cl100k_base), slice_tokens, sentence-boundary truncate
+│       ├── kb_paths.py       # Canonical filename helpers
 │       └── watcher.py       # KB file watcher
 ├── ui/
 │   ├── index.html           # Main UI — conversation list, KB browser
 │   ├── app.js               # Frontend — SSE, markdown, sessions, tool events, highlight.js
+│   ├── kb-graph-hud.js      # Self-contained graph HUD overlay
 │   └── style.css            # Glassmorphism dark theme, tool call bubbles
 ├── tests/                    # ~723 unit+integration tests (e2e/evals separate); KB, graph, API, tools, watcher
 ├── knowledge/                # Writable KB (Obsidian-compatible)
 ├── canon/                    # Read-only KB (agent cannot modify)
 ├── Dockerfile                # python:3.12-slim, non-root user
 ├── docker-compose.yml        # Volume mounts, env_file, host.docker.internal for Ollama
-├── requirements.txt          # Python deps (see CLAUDE.md)
+├── requirements.txt          # Python deps
 ├── ARCHITECTURE.md           # Full technical documentation
-└── CLAUDE.md                 # Development guidelines
+└── LICENSE                   # MIT
 ```
 
 ## Testing
 
-Rebuild the image after changing `src/` or `tests/` (see **Ship workflow** in `CLAUDE.md`). Then:
+Rebuild the image after changing `src/` or `tests/`. Then:
 
 ```bash
 docker exec llm-wiki-agent timeout 600 python -m pytest tests/ --ignore=tests/e2e --ignore=tests/evals -q
@@ -148,10 +173,9 @@ Expect **724 passed**, 0 skipped (main suite). E2E needs live Ollama: `docker ex
 | `EMBEDDING_PROVIDER` | `gemini` | `gemini` for cloud API, `ollama` for local nomic-embed-text |
 | `GOOGLE_GEMINI_API_KEY` | (required) | Gemini API key for embeddings (starts with `AIza...`) |
 | `OLLAMA_BASE_URL` | `http://host.docker.internal:11434` | Ollama API endpoint |
-| `OLLAMA_MODEL` | `glm-5.1:cloud` | Default chat model name |
-| `SUMMARY_MODEL` | `supergemma4-26b` | Model for document-level LLM summaries |
+| `OLLAMA_MODEL` | `llama3.1:8b` | Default chat model name |
+| `SUMMARY_MODEL` | `llama3.1:8b` | Model for document-level LLM summaries |
 | `LANCEDB_DIR` | `/app/lancedb` | LanceDB data directory |
-| `MEMPALACE_PATH` | `/app/mempalace` | Mempalace data directory |
 
 ### Volume Mounts (docker-compose.yml)
 
@@ -159,7 +183,6 @@ Expect **724 passed**, 0 skipped (main suite). E2E needs live Ollama: `docker ex
 |------|-----------|---------|
 | `./knowledge` | `/app/knowledge` | Writable KB (shared with Obsidian) |
 | `./canon` | `/app/canon` | Read-only reference material |
-| `./mempalace` | `/app/mempalace` | Long-term memory (parked) |
 | `./lance-data` | `/app/lancedb` | LanceDB vector store |
 
 ### Switching Embedding Providers
@@ -179,7 +202,6 @@ To switch between Gemini and Ollama embeddings:
 - Surface assumptions explicitly
 - Track LOC/module metrics in ARCHITECTURE.md
 - No sensitive data in git-tracked files
-- User handles all package installs — AI never runs pip/npm/apt
 
 ## Current State
 
@@ -215,3 +237,5 @@ To switch between Gemini and Ollama embeddings:
 5. ~~**Ollama native tool calling**~~ — shipped: `tools=[...]` JSON Schema on `/api/chat`; legacy `[TOOL: ...]` parser removed.
 
 ## License
+
+[MIT](LICENSE)
