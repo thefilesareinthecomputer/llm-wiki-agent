@@ -1,36 +1,57 @@
+<div align="center">
+
 # LLM Wiki Agent
 
-A working implementation of the [LLM Wiki Pattern](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) proposed by Andrej Karpathy, extended with medallion-tiered storage and hybrid local-or-cloud inference. Runs in Docker, uses Obsidian-compatible markdown as the source of truth.
+**Your knowledge base, maintained by an AI that actually reads.**
 
-![LLM Wiki Agent UI](static-assets/images/demo.gif)
+A working implementation of the [LLM Wiki Pattern](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) —
+medallion-tiered storage, hybrid local-or-cloud inference, and a knowledge graph that grows as you use it.
 
-_Any Ollama model works — switch at runtime from the UI dropdown._
+[![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Python 3.12](https://img.shields.io/badge/python-3.12-3776AB.svg)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-009688.svg)](https://fastapi.tiangolo.com/)
+[![Docker](https://img.shields.io/badge/Docker-2496ED.svg)](https://www.docker.com/)
+[![Ollama](https://img.shields.io/badge/Ollama-000000.svg)](https://ollama.ai/)
+
+<br/>
+
+<img src="static-assets/images/demo.gif" alt="LLM Wiki Agent — dark glassmorphism UI with streaming tool calls, knowledge graph HUD, and conversation management" width="780" />
+
+*Any Ollama model works — switch at runtime from the UI dropdown.*
+
+</div>
+
+---
 
 ## Why this exists
 
-Most personal AI agents pick a side: fully local (privacy) or fully cloud (speed). This one switches between them at runtime, same KB either way. Use Ollama locally for sensitive material. Switch to cloud models for heavier reasoning. Embeddings can be local (Ollama) or cloud (Gemini). You decide per session.
+Most AI agents force a choice: fully local for privacy, or fully cloud for speed. This one doesn't.
+
+Use Ollama locally for sensitive material. Switch to cloud models for heavier reasoning. Embeddings local (Ollama) or cloud (Gemini). Same knowledge base either way. You decide per session.
 
 **Three ideas this repo explores:**
 
-1. **The LLM Wiki Pattern as a working system.** Focused single-concept pages, explicit `[[wiki-links]]`, graph traversal as the primary navigation mode.
-2. **Medallion tiers applied to personal knowledge.** `canon/` (read-only gold) > `knowledge/wiki/` (agent-writable silver) > `knowledge/raw/` (source bronze). Search ranks tiers accordingly.
-3. **Honest tool execution.** The agent never reports work it didn't do. Tool results are labeled `COMPLETE`, `TRUNCATED`, or `NOT_EXECUTED`. The UI surfaces the distinction.
+1. **The LLM Wiki Pattern as a working system.** Focused single-concept pages, explicit `[[wiki-links]]`, graph traversal as the primary navigation mode — the pattern [Karpathy described](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f), built and extended.
+2. **Medallion tiers for personal knowledge.** `canon/` (read-only gold) > `knowledge/wiki/` (agent-writable silver) > `knowledge/raw/` (source bronze). Search ranks tiers accordingly — the agent can read your sources but never overwrite them.
+3. **Honest tool execution.** The agent never reports work it didn't do. Tool results are labeled `COMPLETE`, `TRUNCATED`, or `NOT_EXECUTED`. The UI surfaces the distinction in real time.
 
 ## Inference Modes
 
 | Use Case | Chat Model | Embeddings | Network |
 |----------|------------|------------|---------|
 | Fully local / sensitive data | Ollama (local) | Ollama (local) | None required |
-| Hybrid (recommended) | Ollama (local or cloud) | Gemini (cloud) | Embeddings only |
+| **Hybrid (recommended)** | **Ollama (local or cloud)** | **Gemini (cloud)** | **Embeddings only** |
 | Fully cloud / maximum speed | Ollama Cloud | Gemini (cloud) | Required |
 
 Switch chat models at runtime from the UI. Embedding provider switches via `EMBEDDING_PROVIDER` in `.env` (requires a lance-data wipe — embedding spaces aren't compatible across providers).
 
+---
+
 ## Quick Start
 
 ```bash
-# Clone and build
-git clone https://github.com/thefilesareinthecomputer/llm-wiki-agent.git && cd llm-wiki-agent
+git clone https://github.com/thefilesareinthecomputer/llm-wiki-agent.git
+cd llm-wiki-agent
 
 # Create .env with your Gemini API key
 echo "GOOGLE_GEMINI_API_KEY=AIza..." > .env
@@ -38,35 +59,46 @@ echo "EMBEDDING_PROVIDER=gemini" >> .env
 
 docker compose up --build -d
 
-# Access at http://localhost:8080
+# Open http://localhost:8080
 ```
 
-**Prerequisites:** Docker Desktop, Ollama Mac app with at least one model pulled, Google Gemini API key.
+**Prerequisites:** Docker Desktop, [Ollama](https://ollama.ai) with at least one model pulled, Google Gemini API key.
 
-**Changing code:** `src/` and `tests/` are copied into the image at build time (not bind-mounted). After edits, rebuild: `docker compose down && docker compose up --build -d`, then run tests in the container.
+**Changing code:** `src/` and `tests/` are copied into the image at build time. After edits, rebuild: `docker compose down && docker compose up --build -d`, then run tests in the container.
 
-## Features
+---
 
-- **Local inference** via Ollama — no cloud API required for chat
-- **Gemini embeddings** — fast cloud-based vector search (gemini-embedding-001, 768-dim)
-- **Model switching** — change models at runtime from the UI dropdown
-- **Conversation sessions** — create, switch, delete chats; history persists across reloads
-- **KB tools** — 14 tools: list/read tree/section/search/save; graph_neighbors, graph_traverse, graph_search, graph_stats, describe_node; folder_tree; search_conversations, read_conversation; lint_knowledge, compile_knowledge (native Ollama JSON-schema tool calling)
-- **Knowledge graph** — in-memory graph with SIMILAR, INTER_FILE, CROSS_DOMAIN, PARENT_CHILD, REFERENCES (wiki-link / markdown / prose), RELATES_TO edges. Edge provenance (`link_text`, `link_kind`, `evidence`) surfaced in graph tools.
-- **Medallion architecture** — `canon/` (gold, read-only), `knowledge/wiki/` (silver, agent-writable), `knowledge/raw/` (bronze, source material). `save_knowledge` always lands under `wiki/`; search ranks canon > wiki > raw at equal similarity.
-- **LLM Wiki Pattern alignment** — focused single-concept pages with explicit `[[wiki-link]]`s; `compile_knowledge(source)` plans new pages from raw/ inputs; `lint_knowledge()` flags omnibus-file warning signs (oversized chunks, heading collisions, orphans, broken links). See ARCHITECTURE.md for full pattern.
-- **Heading trees with token costs** — agent sees structure and size before loading sections
-- **Adaptive tool budget** — max 15 section loads, min 8000 tokens remaining; per-class per-turn caps (explore/write/maintenance); `compile_knowledge` and `save_knowledge` **each** consume one **write** slot; tool traffic capped at ~50% of context window; honest in-band refusals
-- **Streaming tool loop** — Ollama native `tool_calls`; execute in `asyncio.to_thread`, feed `role="tool"` results back; per-class budgets + context cap + dedup of identical `(name, args)`; max 10 iterations
-- **Honest tool framing** — `[TOOL_RESULT: name | COMPLETE ...]` or `TRUNCATED ...`; refusals / duplicate skips use **`NOT_EXECUTED`** (never labeled `COMPLETE`). `read_knowledge_section` self-reports via `[SECTION: ...]` with `offset`. SSE `tool_result` JSON includes `executed` for the UI
-- **Section-based chunking** — H1-H5 hierarchy, recursive splitting, document-level LLM overviews
-- **LLM summary preservation** — reindex/save/watcher never overwrite stored LLM summaries with mechanical fallbacks; mechanical only fills genuinely new chunks
-- **Watcher path-suppression** — `save_knowledge` mutes its own write cascade so each save runs exactly one inline reindex, not four
-- **Knowledge base** — semantic search over `knowledge/` and `canon/` markdown files
-- **SSE streaming** — thinking tokens; per-iteration lifecycle (`iteration_start`, `tool_call`, `tool_executing`, `tool_done`, `tool_result`, `heartbeat`). Chat UI: one tool bubble per call (`tool_call` creates it; `tool_executing` only drives the timer), summarized args for large payloads (e.g. `save_knowledge.content` → length + preview)
-- **KB file watcher** — automatic reindexing when markdown files change
-- **Debug logging** — structured JSONL to `/app/logs/` (chat, index, tools)
-- **Glassmorphism UI** — dark theme, conversations + KB browser, per-iteration containers, collapsible tool/thinking bubbles, live tool elapsed timers, pulsing thinking indicator
+## What it does
+
+| | |
+|---|---|
+| **15 KB tools** | list, read tree/section, search, save; graph neighbors/traverse/search/stats, describe node, folder tree; search/read conversations; lint, compile — all via native Ollama JSON-schema tool calling |
+| **Knowledge graph** | In-memory graph with 6 edge types (SIMILAR, INTER_FILE, CROSS_DOMAIN, PARENT_CHILD, REFERENCES, RELATES_TO) and edge provenance — `link_text`, `link_kind`, `evidence` surfaced in every graph tool response |
+| **Medallion architecture** | `canon/` (gold, read-only) > `knowledge/wiki/` (silver, agent-writable) > `knowledge/raw/` (bronze, source). Search ranks canon above wiki above raw at equal similarity |
+| **LLM Wiki Pattern** | Single-concept pages with `[[wiki-links]]`; `compile_knowledge(source)` plans new pages from raw inputs; `lint_knowledge()` flags omnibus files, orphans, and broken links |
+| **Honest tool framing** | `COMPLETE` / `TRUNCATED` / `NOT_EXECUTED` — the agent never labels a skipped or duplicate tool call as complete. UI shows the distinction in real time |
+| **Adaptive budgets** | Max 15 section loads per turn, min 8K tokens remaining, per-class caps (explore/write/maintenance), ~50% context cap on tool traffic, honest in-band refusals |
+| **Streaming tool loop** | Ollama native `tool_calls`; `asyncio.to_thread` execution; dedup of identical `(name, args)` pairs; SSE lifecycle events per iteration |
+| **Obsidian-compatible** | Markdown files with frontmatter, `[[wiki-links]]`, heading trees with token costs — works as an Obsidian vault out of the box |
+
+<details>
+<summary><strong>Full feature list</strong></summary>
+
+- Local inference via Ollama — no cloud API required for chat
+- Gemini embeddings — fast cloud-based vector search (gemini-embedding-001, 768-dim)
+- Model switching at runtime from the UI dropdown
+- Conversation sessions — create, switch, delete; history persists across reloads
+- Heading trees with token costs — agent sees structure and size before loading sections
+- Section-based chunking — H1-H5 hierarchy, recursive splitting, document-level LLM overviews
+- LLM summary preservation — reindex/save/watcher never overwrite stored LLM summaries with mechanical fallbacks
+- Watcher path-suppression — `save_knowledge` mutes its own write cascade so each save triggers one inline reindex, not four
+- SSE streaming — thinking tokens, per-iteration lifecycle (`iteration_start`, `tool_call`, `tool_executing`, `tool_done`, `tool_result`, `heartbeat`)
+- KB file watcher — automatic reindexing when markdown files change
+- Structured debug logging — JSONL to `/app/logs/`
+- Glassmorphism UI — dark theme, conversations + KB browser, collapsible tool/thinking bubbles, live tool elapsed timers
+</details>
+
+---
 
 ## Tech Stack
 
@@ -75,44 +107,15 @@ docker compose up --build -d
 | Container | Docker (`python:3.12-slim`, non-root user) |
 | Runtime | Python 3.12 |
 | Web Server | FastAPI + Uvicorn |
-| Model Inference | Ollama Mac app (HTTP API at `host.docker.internal:11434`) |
-| Embeddings | Google Gemini `gemini-embedding-001` (768-dim, cloud) or Ollama `nomic-embed-text` (768-dim, local) |
-| Conversation Store | JSON files (`/app/sessions/`) |
-| Vector Search | LanceDB (Lance format, 768-dim embeddings) |
+| Model Inference | Ollama (HTTP API at `host.docker.internal:11434`) |
+| Embeddings | Google Gemini `gemini-embedding-001` (cloud) or Ollama `nomic-embed-text` (local) |
+| Vector Search | LanceDB (Lance format, 768-dim) |
 | Knowledge Graph | In-memory `KnowledgeGraph` class (JSON persistence) |
 | Token Counting | tiktoken (cl100k_base) |
-| Knowledge Base | Markdown files (Obsidian-compatible), section-based chunking |
+| Knowledge Base | Markdown (Obsidian-compatible), section-based chunking |
 | UI | Vanilla JS + CSS (dark glassmorphism theme) |
 
-## Storage Architecture
-
-| System | Location | Purpose | Status |
-|--------|----------|---------|--------|
-| Chat sessions | `/app/sessions/*.json` | CRUD, auto-title, history, tool-call metadata | Active |
-| KB vectors | `/app/lancedb/` | Semantic search over markdown | Active |
-| KB graph | `/app/lancedb/graph.json` | Graph edges and nodes | Active |
-| Debug logs | `/app/logs/*.log` | Structured JSONL per module | Active |
-
-## API Endpoints
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/` | GET | UI homepage |
-| `/conversations` | GET | List conversations (most recent first) |
-| `/conversations` | POST | Create new conversation |
-| `/conversations/{id}` | GET | Get conversation turns |
-| `/conversations/{id}` | DELETE | Delete conversation |
-| `/chat` | POST | Send message, get SSE stream (requires `conversation_id`) |
-| `/models` | GET | List available models + current |
-| `/model` | POST | Switch model |
-| `/kb/knowledge` | GET | List knowledge files |
-| `/kb/canon` | GET | List canon files (with subfolders) |
-| `/kb/file/{path}` | GET | Get file content |
-| `/kb/search?q=` | GET | Semantic search |
-| `/kb/stats` | GET | Index statistics (incl. graph stats + embedding model) |
-| `/kb/folder-tree` | GET | Folder hierarchy tree for LLM consumption |
-| `/kb/reindex` | POST | Rebuild index (body: `{entities: true, summaries: true}`) |
-| `/sse?token=` | GET | SSE keepalive connection |
+---
 
 ## Project Structure
 
@@ -120,7 +123,7 @@ docker compose up --build -d
 llm-wiki-agent/
 ├── src/
 │   ├── main.py              # Entry point — init, start, cleanup
-│   ├── debug_log.py         # Structured JSONL logging to /app/logs/
+│   ├── debug_log.py         # Structured JSONL logging
 │   ├── models/
 │   │   └── gateway.py       # Ollama HTTP client, streaming, model switch
 │   ├── web/
@@ -134,35 +137,35 @@ llm-wiki-agent/
 │   │   ├── wiki_links.py    # [[wiki-link]] parsing and resolution
 │   │   └── prose_bridges.py # Prose reference extraction for graph edges
 │   └── agent/
-│       ├── runtime.py       # Agent loop (stub — tool loop in app.py)
-│       ├── tools.py          # 14 KB tools + per-class budgets, Obsidian writes, lint/compile, conversation tools
-│       ├── tokenizer.py      # Token counting (cl100k_base), slice_tokens, sentence-boundary truncate
+│       ├── tools.py          # 15 KB tools, per-class budgets, Obsidian writes, lint/compile
+│       ├── tokenizer.py      # Token counting, slice_tokens, sentence-boundary truncate
 │       ├── kb_paths.py       # Canonical filename helpers
 │       └── watcher.py       # KB file watcher
 ├── ui/
 │   ├── index.html           # Main UI — conversation list, KB browser
-│   ├── app.js               # Frontend — SSE, markdown, sessions, tool events, highlight.js
+│   ├── app.js               # Frontend — SSE, markdown, sessions, tool events
 │   ├── kb-graph-hud.js      # Self-contained graph HUD overlay
-│   └── style.css            # Glassmorphism dark theme, tool call bubbles
-├── tests/                    # ~723 unit+integration tests (e2e/evals separate); KB, graph, API, tools, watcher
+│   └── style.css            # Glassmorphism dark theme
+├── tests/                    # ~723 unit + integration tests; e2e/evals separate
 ├── knowledge/                # Writable KB (Obsidian-compatible)
 ├── canon/                    # Read-only KB (agent cannot modify)
 ├── Dockerfile                # python:3.12-slim, non-root user
 ├── docker-compose.yml        # Volume mounts, env_file, host.docker.internal for Ollama
 ├── requirements.txt          # Python deps
-├── ARCHITECTURE.md           # Full technical documentation
-└── LICENSE                   # MIT
+└── ARCHITECTURE.md           # Full technical documentation
 ```
 
-## Testing
+---
 
-Rebuild the image after changing `src/` or `tests/`. Then:
+## Testing
 
 ```bash
 docker exec llm-wiki-agent timeout 600 python -m pytest tests/ --ignore=tests/e2e --ignore=tests/evals -q
 ```
 
-Expect **724 passed**, 0 skipped (main suite). E2E needs live Ollama: `docker exec llm-wiki-agent python -m pytest tests/e2e -v`.
+**724 passed**, 0 skipped (main suite). E2E needs live Ollama: `docker exec llm-wiki-agent python -m pytest tests/e2e -v`.
+
+---
 
 ## Configuration
 
@@ -173,11 +176,11 @@ Expect **724 passed**, 0 skipped (main suite). E2E needs live Ollama: `docker ex
 | `EMBEDDING_PROVIDER` | `gemini` | `gemini` for cloud API, `ollama` for local nomic-embed-text |
 | `GOOGLE_GEMINI_API_KEY` | (required) | Gemini API key for embeddings (starts with `AIza...`) |
 | `OLLAMA_BASE_URL` | `http://host.docker.internal:11434` | Ollama API endpoint |
-| `OLLAMA_MODEL` | `llama3.1:8b` | Default chat model name |
+| `OLLAMA_MODEL` | `llama3.1:8b` | Default chat model |
 | `SUMMARY_MODEL` | `llama3.1:8b` | Model for document-level LLM summaries |
 | `LANCEDB_DIR` | `/app/lancedb` | LanceDB data directory |
 
-### Volume Mounts (docker-compose.yml)
+### Volume Mounts
 
 | Host | Container | Purpose |
 |------|-----------|---------|
@@ -187,54 +190,17 @@ Expect **724 passed**, 0 skipped (main suite). E2E needs live Ollama: `docker ex
 
 ### Switching Embedding Providers
 
-To switch between Gemini and Ollama embeddings:
-
 1. Edit `.env`: set `EMBEDDING_PROVIDER=ollama` (or `gemini`)
 2. **Wipe lance data**: `rm -rf lance-data/*` (embedding spaces are incompatible)
 3. Rebuild: `docker compose up --build -d`
 
-## Development Principles
+---
 
-- Spec before code
-- Tests are proof — "seems right" is not done
-- Small tasks (~5 files max)
-- Vertical slices
-- Surface assumptions explicitly
-- Track LOC/module metrics in ARCHITECTURE.md
-- No sensitive data in git-tracked files
+## Architecture
 
-## Current State
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the full technical walkthrough: module map, data flow, embedding pipeline, knowledge graph construction, tool loop mechanics, and resolved design decisions.
 
-**Working:**
-- Chat with Ollama models (streaming SSE)
-- 14 KB tools (incl. `describe_node`, `search_conversations`, `read_conversation`, graph drill-down params, lint/compile)
-- Knowledge graph with SIMILAR/INTER_FILE/CROSS_DOMAIN/PARENT_CHILD/REFERENCES/RELATES_TO edges with provenance (`link_text`, `link_kind`, `evidence`)
-- Medallion KB layout: `canon/` (gold) > `knowledge/wiki/` (silver) > `knowledge/raw/` (bronze); tier-weighted search ranking
-- LLM Wiki Pattern: focused single-concept pages, `[[wiki-link]]` parsing → REFERENCES edges, `compile_knowledge(source)` planning, `lint_knowledge()` omnibus warnings
-- Gemini embeddings (768-dim, cloud, fast indexing ~1 min)
-- Document-level LLM summaries (opt-in via `/kb/reindex?summaries=true`); LLM summaries survive every reindex/save/watcher event
-- Heading trees with token costs and section summaries
-- Structured debug logging (JSONL to /app/logs/)
-- Auto-nudge when model goes silent after tool results
-- Honest tool-result framing (`COMPLETE` / `TRUNCATED` / `NOT_EXECUTED`; sentence-boundary truncation; `offset` on `read_knowledge_section`; SSE `tool_result.executed`)
-- Per-iteration UI containers, SSE heartbeats, collapsible tool/thinking bubbles (amber styling when `executed` is false), live tool elapsed timers
-- Token-budgeted history walk + intra-turn 50%-of-context cap (no Turn 2-3 deadlock; older tool turns rendered as compact stubs)
-- **Tool-loop guard** — within- and cross-iteration dedup of identical `(name, args)`; per-class per-turn budgets; early break when tool traffic exceeds ~50% of context window
-- **Graph addressing** — heading-only lookup, `"file > heading"` shortcut, `graph_stats` paths round-trip through `graph_neighbors`, `graph_neighbors` pagination via `offset`/`edge_type`/`limit`
-- **`graph_search` rich output** — filename + heading + score + summary
-
-**Known Issues:**
-- Empty search results (`search_knowledge("")`, `graph_search("")`) return "No matches" instead of falling back to `list_knowledge()` / graph stats.
-- KB watcher emits multiple `on_modified` events per single save; `suppress_paths` covers `save_knowledge`'s own self-cascade but not the duplicate-event-per-save case in general (no per-path debounce yet).
-- `build_index(force=False)` skips unchanged files via mtime but never deletes chunks for files removed from the KB (orphaned-chunk sweep is open work).
-
-## Next Steps
-
-1. **UI: Expand/Collapse all toggle** — header button to expand/collapse every tool and thinking bubble at once. Collapsed bubbles aren't included in copy-paste; expanded ones are. Worth surfacing as a real control.
-2. **Watcher debouncing** — 250ms per-path debounce inside `KBEventHandler` to collapse the duplicate-event-per-save problem.
-3. **Empty-query fallbacks** — `graph_search("")` → graph stats + usage hint; `graph_neighbors()` with no results → suggest `list_knowledge()`.
-4. **Orphaned chunk cleanup** — sweep stored filenames vs current files on startup, drop chunks for deleted files.
-5. ~~**Ollama native tool calling**~~ — shipped: `tools=[...]` JSON Schema on `/api/chat`; legacy `[TOOL: ...]` parser removed.
+---
 
 ## License
 
